@@ -13,5 +13,5 @@ runApp()
 To launch the web-served version of the application:
 ````
 library(shiny)
-shiny::runGitHub('don-morrison-2000.github.io','don-morrison-2000', subdir='source/shiny/chicago_tree_ui/')
+shiny::runGitHub('ChicagoRTI/Modeling','<git user id>', subdir='/ModelVisualization')
 ````

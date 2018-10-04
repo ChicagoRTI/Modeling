@@ -7,13 +7,13 @@
 #    http://shiny.rstudio.com/
 #
 
-# source('D:/CRTI/r_projects/ModelVisualization/app.R')
+# source(paste(getwd(), '/app.R', sep=''))
 # runApp()
 
 #
 # To run from an R command line
 # library(shiny)
-# shiny::runGitHub('don-morrison-2000.github.io','don-morrison-2000', subdir='source/shiny/chicago_tree_ui/')
+# shiny::runGitHub('ChicagoRTI/Modeling','don-morrison-2000', subdir='/ModelVisualization')
 
 # Load packages
 library(shiny)
@@ -66,8 +66,8 @@ g_all_predictors_quantitative <- g_all_predictors_quantitative[order(names(g_all
 g_all_predictors_categorical <- c('Land use' = 'LU')
 g_all_predictors <- c(g_all_predictors_quantitative, g_all_predictors_categorical)
 
-#g_data_descriptors_local_file <<- paste(getwd(), '/', 'data_descriptors.rds', sep='') # Warning - getcwd() returns different results when call from "source"vs "runApp"
-g_data_descriptors_local_file <<- 'D:/CRTI/r_projects/ModelVisualization/data/data_descriptors.rds'
+g_data_descriptors_local_file <<- paste(getwd(), '/data/data_descriptors.rds', sep='') # Warning - getcwd() returns different results when call from "source"vs "runApp"
+#g_data_descriptors_local_file <<- 'D:/CRTI/r_projects/ModelVisualization/data/data_descriptors.rds'
 
 g_data_descriptors_http_url <- 'https://don-morrison-2000.github.io/source/shiny/chicago_tree_ui/data_descriptors.rds'
 g_data_descriptors_fn <- if (file.exists(g_data_descriptors_local_file)) g_data_descriptors_local_file else gzcon(url(g_data_descriptors_http_url))

@@ -1,5 +1,5 @@
 
-# source ("D:/CRTI/r_projects/accuracy/confusion_matrix.r")
+# source(paste(getwd(), '/confusion_matrix.r', sep=''))
 
 
 create_confusion_matrix <- function(LU=13)
@@ -112,7 +112,7 @@ create_confusion_matrix <- function(LU=13)
 #                  cat(object_id=ctree_test_p[i,'OBJECTID'],ctree_test_p[i,'GENUSSPECI'],predicted_species, "\n", sep=" ")
             }
             # Save this processor's results to disk
-            saveRDS(results, file=paste('D:/CRTI/r_projects/accuracy/predictions_', p, '.rds', sep=''))
+            saveRDS(results, file=paste(getwd(), '/predictions_', p, '.rds', sep=''))
       }
       stopCluster(cl)
       
@@ -120,14 +120,14 @@ create_confusion_matrix <- function(LU=13)
       final_results <- matrix(nrow=0, ncol=3)
       for (p in seq(1:threads))
       {
-            final_results <- rbind(final_results, readRDS(paste('D:/CRTI/r_projects/accuracy/predictions_', p, '.rds', sep='')))
+            final_results <- rbind(final_results, readRDS(paste(getwd(), '/predictions_', p, '.rds', sep='')))
       }
       
       # Convert to data frame, sort on object ID and write results to CSV file
       df <- data.frame(final_results, stringsAsFactors=FALSE)
       colnames(df) <- c("Object ID", "Observed Species", "Predicted Species")
       df <- df[order(as.numeric(df[['Object ID']])),]
-      write.csv(df, 'D:/CRTI/r_projects/accuracy/predictions.csv', row.names=FALSE)
+      write.csv(df, paste(getwd(), '/predictions.csv', sep=''), row.names=FALSE)
       
       # Remove "None" predictions and build a confusion table
       ct <- df[df[['Predicted Species']]!="None",]
