@@ -1,0 +1,220 @@
+---
+title: "Chicago Tree Data (DuPage County)"
+output: 
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 4
+    theme: yeti
+    number_sections: true
+    df_print: paged
+---
+
+<style>
+  .main-container {
+    max-width: 1400px !important;
+  }
+</style>
+
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 150)
+```
+
+```{r include = FALSE}
+ctree_raw = read.csv (
+      'D:/CRTI/data/SurveyNov2017_canopy_dist.txt',
+      as.is = TRUE,
+      header = TRUE,
+      sep ='\t'
+)
+ctree_clean = read.csv (
+      'D:/CRTI/data/cleaned/dupage_county_accepted_V4.csv',
+      as.is = TRUE,
+      header = TRUE,
+      sep =','
+)
+```
+# Raw data
+
+## DATATYPE
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(ctree_raw$DATATYPE)
+barplot(t)
+t
+```
+
+## STREETTREE
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(ctree_raw$STREETTREE)
+```
+
+## GENUSSPECI (top 50)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+df <- as.data.frame(table(ctree_raw$GENUSSPECI))
+head(df[order(-df$Freq),],50)
+```
+
+## DBH_IN
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$DBH_IN, breaks=c(0,.1,.5,1,2,3,4,5,10,15,20,40,60,80,100),include.lowest = TRUE))
+```
+
+## FC_cnsd2 (LU)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(ctree_raw$FC_cnsd2)
+barplot(t)
+t
+```
+
+## Compactnes (CROWN_COMPACTNESS)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$Compactnes, breaks=c(0,seq(.00001, 4,.5)),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+## nDSM_max (HEIGHT_MAX)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$nDSM_max, breaks=c(0,.1, seq(10, 135, 10)),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+## nDSM_mean (HEIGHT_MEAN)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$nDSM_mean, breaks=c(0,.1, seq(10, 135, 10)),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+## Area (CROWN_AREA)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$Area, breaks=c(0,.1, 10, 100, 200, 400, 600, 1000),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+## MEDAGE (BLDG_AGE)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$MEDAGE, breaks=c(0, seq (1950, 2020, 10)),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+## HousingDen (HU_DENS)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$HousingDen, breaks=c(0, 100, 500, 1000, 1500, 2000, 3000, 6000, 9000,12000),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+## RelBord_tr (RELBORDER_TREE)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_raw$RelBord_tr, breaks=seq(0, 1, 0.1),include.lowest = TRUE))
+barplot(t)
+t
+```
+
+
+# Cleaned data
+## DATATYPE
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(ctree_clean$DATATYPE)
+t <- c(sum(is.na(ctree_clean$DATATYPE)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+<!-- ## STREETTREE -->
+<!-- ```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000} -->
+<!-- barplot(table(ctree_clean$STREETTREE)) -->
+<!-- ``` -->
+
+## GENUSSPECI (top 50)
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+df <- as.data.frame(table(ctree_clean$GENUSSPECI))
+head(df[order(-df$Freq),],50)
+```
+
+## DBH_IN
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$DBH_IN, breaks=c(0,.1,.5,1,2,3,4,5,10,15,20,40,60,80,100),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$DBH_IN)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## LU
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(ctree_clean$LU)
+t <- c(sum(is.na(ctree_clean$LU)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## CROWN_COMPACTNESS
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$CROWN_COMPACTNESS, breaks=c(0,seq(.00001, 4,.5)),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$CROWN_COMPACTNESS)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## HEIGHT_MAX
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$HEIGHT_MAX, breaks=c(0,.1, seq(10, 135, 10)),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$HEIGHT_MAX)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## HEIGHT_MEAN
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$HEIGHT_MEAN, breaks=c(0,.1, seq(10, 135, 10)),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$CROWN_COMPACTNESS)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## CROWN_AREA
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$CROWN_AREA, breaks=c(0,.1, 10, 100, 200, 400, 600, 1000),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$CROWN_COMPACTNESS)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## BLDG_AGE
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$BLDG_AGE, breaks=seq (80, 0, -10),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$BLDG_AGE)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## HU_DENS
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$HU_DENS, breaks=c(0, 100, 500, 1000, 1500, 2000, 3000, 6000, 9000,12000),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$HU_DENS)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
+## RELBORDER_TREE
+```{r echo=FALSE, comment=NA, cols.print=5, rows.print=50, max.print=1000}
+t <- table(cut(ctree_clean$RELBORDER_TREE, breaks=seq(0, 1, 0.1),include.lowest = TRUE))
+t <- c(sum(is.na(ctree_clean$RELBORDER_TREE)),t)
+names(t) <- c("NA",names(t)[-1])
+barplot(t)
+t
+```
+
