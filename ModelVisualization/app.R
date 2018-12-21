@@ -1051,7 +1051,6 @@ server <- function(input, output, session)
        output$contents <- renderPlot({ 
              var_descs <- g_all_predictors_quantitative
              # Keep only the trees in the requested set of land uses
-             #            ctree <- current_data_descriptor$ctree
              ctree <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$ctree
              ctree <- ctree[ctree$LU %in% r_values$land_use_list,]
              if(nrow(ctree)==0)
@@ -1059,16 +1058,18 @@ server <- function(input, output, session)
                    return (NULL)
              }
              ctree$LU <- factor(ctree$LU)
-             # Categorize the species by the requested variable
+             # Categorize the species by the requested variable. Not that the quantile splits include species that are not selected for display
              ctree <- assign_quantiles (ctree, input$ui_var, input$ui_bins)
-             
+             # Remove species that are not selected for display
+             ctree <- ctree[ctree$GENUSSPECI %in% input$ui_species,]
+
              # Create a data frame to collect the data
              df_cols <- c("Species", "LandUse", levels(ctree$cat))
              fits <- setNames(data.frame(matrix(ncol=length(df_cols), nrow = 0)), df_cols)
              for(sp in input$ui_species)
              {
                    ctree[,'occur'] = ifelse(ctree[,'GENUSSPECI']==sp, 1,0)
-                   fit <- tapply(ctree$occur, list(ctree$LU, ctree$cat), mean, na.rm=TRUE)
+                   fit <- tapply(ctree$occur, list(ctree$LU, ctree$cat), sum, na.rm=TRUE)
                    fit <- cbind(Species=sp, LandUse=rownames(fit), as.data.frame(fit))
                    fits <- rbind(fits,fit) 
              }
@@ -1090,7 +1091,7 @@ server <- function(input, output, session)
                          geom_bar(position="dodge", stat="identity") +
                          facet_wrap(~Species, ncol=1) +
                          xlab('Land Use') +
-                         ylab('Relative frequency') +
+                         ylab('Ocurrences') +
                          scale_fill_discrete(name=names(var_descs)[which(var_descs==input$ui_var)]) +
                          theme(axis.text.x=element_text(angle = -30, hjust = 0))
                    # Add vertical separator lines if more than one land use category
@@ -1105,7 +1106,7 @@ server <- function(input, output, session)
                          geom_bar(position="dodge", stat="identity") +
                          facet_wrap(~Species, ncol=1) +
                          xlab(names(var_descs)[which(var_descs==input$ui_var)]) +
-                         ylab('Relative frequency') +
+                         ylab('Ocurrences') +
                          scale_fill_discrete(name="Land use") +
                          theme(axis.text.x=element_text(angle = -30, hjust = 0))
                    # Add vertical separator lines if more than one measurement category
@@ -1144,8 +1145,6 @@ server <- function(input, output, session)
              DO_SCALE <- DO_SCALE
              all_predictors_quantitative <- g_all_predictors_quantitative
 
-
-#            for (i in 1:length(data_descriptor_specs))
              model_set <- foreach (i=1:length(data_descriptor_specs), .packages='nnet') %dopar%
              {
                    spec <- data_descriptor_specs[[i]]
