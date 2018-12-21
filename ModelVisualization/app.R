@@ -968,10 +968,13 @@ server <- function(input, output, session)
              }
              else
              {
-                   # Bin the specified variable
-                   full$cat <- cut2(full[[var]], g=num_bins, digits=3)
-                   # Pretty up the level names
-                   levels(full$cat) <- gsub(',','-',gsub('\\[||\\]||\\(||\\)','',levels(full$cat)))
+                   # Bin the specified variable. The bin names are stored in a new column called "cat"
+                   full$cat <- cut2(full[[var]], g=num_bins)
+                   # Pretty up the bin names. Remove brackets and use only 3 significant digits 
+                   x <- gsub('\\[||\\]||\\(||\\)','',levels(full$cat))
+                   x <- strsplit(x, ",")
+                   x <- lapply(lapply(lapply(lapply(x, as.numeric),signif, digits=3),as.character), paste, collapse="-")
+                   levels(full$cat) <- unlist(x)
              }
              return(full)
        }
@@ -1058,7 +1061,7 @@ server <- function(input, output, session)
                    return (NULL)
              }
              ctree$LU <- factor(ctree$LU)
-             # Categorize the species by the requested variable. Not that the quantile splits include species that are not selected for display
+             # Categorize the species by the requested variable. Note that the quantile splits include species that are not selected for display
              ctree <- assign_quantiles (ctree, input$ui_var, input$ui_bins)
              # Remove species that are not selected for display
              ctree <- ctree[ctree$GENUSSPECI %in% input$ui_species,]
