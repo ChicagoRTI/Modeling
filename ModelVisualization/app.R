@@ -299,7 +299,8 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                         title=p(icon('info-sign', lib = "glyphicon"),'Describe'),
                         fluidRow
                         ( 
-                              column(3,selectInput(inputId = "ui_data_descriptor_name", label = strong("Dataset"),  choices = '', selected = ''))
+                              column(3,selectInput(inputId = "ui_data_descriptor_name", label = strong("Dataset"),  choices = '', selected = '')),
+                              column(1, offset=8, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
                         ),
                         g_hr,
                                     fluidRow (
@@ -1026,6 +1027,22 @@ server <- function(input, output, session)
        # Observe the button to flip the chart
        observeEvent(input$ui_flip_chart, {
              r_values$flip_chart <- !r_values$flip_chart
+       })
+       
+       # Observe the help button
+       observeEvent(input$ui_help, {
+             showModal(modalDialog(
+                   title = "CRTI Tree Data - Describe",
+                   HTML("
+                        <dl>
+                              <dt>Abundance level</dt><dd>Adjusts how many species to display in the list of species. Move the slider to increase or decrease the size of the list of species. When the slider is set to 'n', the species list represents the union of the 'n' most abundant species in each selected land use</dd>
+                              <dt>Species</dt><dd>Which species to chart. The available species reacts to changes in the abundance level and the selected land uses</dd>
+                              <dt>Measurement</dt><dd>Which dependent variable to chart</dd>
+                              <dt>Quantiles</dt><dd>The number of quantiles in which to divide up the trees, according to the selected measurement. The set of trees used to determine the quantile breaks includes all of the species in the species list and the selected land uses</dd>
+                              <dt>Land use</dt><dd>The land uses to chart</dd>
+                        </dl>
+                        ")
+             ))
        })
        
        update_species_list <- reactive({
