@@ -316,10 +316,8 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                                           column (
                                                 width=3,
                                                 wellPanel (
-                                                      selectInput (inputId = "ui_var", label = strong("Measurement"),  choices=g_all_predictors_quantitative, selected=names(g_all_predictors_quantitative)[1])
-                                                ),
-                                                wellPanel (
-                                                      sliderInput (inputId = "ui_bins", label = strong("Quantiles"),  min=1, max=10, value=4)
+                                                      sliderInput (inputId = "ui_bins", label = strong("Quantiles"),  min=1, max=10, value=4),
+                                                      selectInput (inputId = "ui_var",  label="", choices=g_all_predictors_quantitative, selected=names(g_all_predictors_quantitative)[1])
                                                 ),
                                                 wellPanel (
                                                       checkboxGroupInput (inputId = "ui_land_use", label = strong("Land use"),  choices = NULL, selected = NULL),
@@ -1037,8 +1035,7 @@ server <- function(input, output, session)
                         <dl>
                               <dt>Abundance level</dt><dd>Adjusts how many species to display in the list of species. Move the slider to increase or decrease the size of the list of species. When the slider is set to 'n', the species list represents the union of the 'n' most abundant species in each selected land use</dd>
                               <dt>Species</dt><dd>Which species to chart. The available species reacts to changes in the abundance level and the selected land uses</dd>
-                              <dt>Measurement</dt><dd>Which dependent variable to chart</dd>
-                              <dt>Quantiles</dt><dd>The number of quantiles in which to divide up the trees, according to the selected measurement. The set of trees used to determine the quantile breaks includes all of the species in the species list and the selected land uses</dd>
+                              <dt>Quantiles</dt><dd>Quantiles are cut points dividing a set of observations in a sample into a number of equal sized groups (or as close as possible to equal) based on the value of a quantitative variable. The set of observations includes those records in the dataset where the species name and land use are selected.</dd>
                               <dt>Land use</dt><dd>The land uses to chart</dd>
                         </dl>
                         ")
@@ -1070,18 +1067,18 @@ server <- function(input, output, session)
        # Plot the chart (note that this is wrapped by renderUI to allow the height to vary)
        output$contents <- renderPlot({ 
              var_descs <- g_all_predictors_quantitative
-             # Keep only the trees in the requested set of land uses
+             # Keep only the trees in the requested set of land uses and species
              ctree <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$ctree
              ctree <- ctree[ctree$LU %in% r_values$land_use_list,]
+             ctree <- ctree[ctree$GENUSSPECI %in% input$ui_species,]
              if(nrow(ctree)==0)
              {
                    return (NULL)
              }
              ctree$LU <- factor(ctree$LU)
-             # Categorize the species by the requested variable. Note that the quantile splits include species that are not selected for display
+
+             # Categorize the species by the requested variable. 
              ctree <- assign_quantiles (ctree, input$ui_var, input$ui_bins)
-             # Remove species that are not selected for display
-             ctree <- ctree[ctree$GENUSSPECI %in% input$ui_species,]
 
              # Create a data frame to collect the data
              df_cols <- c("Species", "LandUse", levels(ctree$cat))
