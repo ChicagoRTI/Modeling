@@ -357,7 +357,8 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                                          title='Datasets', width=3, 
                                          tableOutput(outputId = "admin_datasets")
                                    )
-                             )
+                             ),
+                             column(1, style = "margin-top: 25px;", actionButton("admin_help", "", icon=icon('question-sign', lib = "glyphicon")))
                        ),
                        g_hr,
                        
@@ -419,7 +420,8 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                                                )
                                          )
                                    )
-                             )
+                             ),
+                             column(1, style = "margin-top: 25px;", actionButton("admin_help_action", "", icon=icon('question-sign', lib = "glyphicon")))
                        )
                  )
 
@@ -1260,6 +1262,66 @@ server <- function(input, output, session)
              }
              return (top_spps)
        }
+       
+       # Observe the help button
+       observeEvent(input$admin_help, {
+             showModal(modalDialog(
+                   title = "CRTI Tree Data - Admin",
+                   HTML("
+                        <p>
+                              Each dataset is made up of 2 parts:
+                              <ol>
+                              <li>Observation data. Since this can be quite large, it is loaded in on-demand from its home GitHub location (https://don-morrison-2000.github.io/source/shiny/chicago_tree_ui/<dataset_name>.csv) 
+                              <li>Descriptive information. This is in R object format and loaded at application startup time from its home GitHub location (https://don-morrison-2000.github.io/source/shiny/chicago_tree_ui/data_descriptor.rds) 
+                              </ol>
+                              To create and archive a new dataset:
+                              <ol>
+                              <li>Add dataset. 
+                                    Reads the observation data from your local drive, adds missing columns, and writes the results out to the local cache at [current_working_directory]/data/<dataset_name>.csv.  
+                                    Also generates in-memory R objects that provide descriptive information on the obeservation data
+                              <li>Rebuild model. 
+                                    Generates the multinomial regression model based on the observation data and updates the in-memory descriptive information. 
+                              <li>Save configuration. 
+                                    Writes the in-memory descriptive information to [current_working_directory]/data/data_descriptors.rds. At this point the .csv and the .rds files can be uploaded to GitHub. 
+                                    To verify, delete the local .csv and .rds files, then restart the application.
+                              </ol>
+                        ")
+                   ))
+       })
+       
+       
+       # Observe the action help button
+       observeEvent(input$admin_help_action, {
+             html <- character()
+             if (input$admin_action_name == "Add dataset")
+             {
+                   html <- 
+                         "<dt>Name</dt><dd>The display name to be assigned to the the dataset</dd>
+                          <dt>Data file</dt><dd>Path to the local file</dd>"
+             }
+             else if (input$admin_action_name == "Rebuild model")
+             {
+                   html <- 
+                         "<dt>Name</dt><dd>The display name of the dataset. The observation data is reloaded to ensure the model is built with the lastest data</dd>
+                          <dt>Iterations</dt><dd>Creating a multinomial regression model is an iterative process. More iterations require more time but yield higher accuracy</dd>
+                          <dt>Calculate p-values</dt><dd>The p-value helps determine the significance of a predictor variable. A p-values of less than .05 indicates that a predictor variable is statistically significant. Calculating p-values can take a lot of time</dd>"             
+             }
+             else if (input$admin_action_name == "Delete dataset")
+             {
+                   html <- 
+                         "<dt>Name</dt><dd>The display name of the dataset to be deleted. The dataset and associated descriptions are deleted from memory and the local cache</dd>"
+             }
+             else if (input$admin_action_name == "Save configuration")
+             {
+                   html <- 
+                         "Writes the in-memory descriptive information to [current_working_directory]/data/data_descriptors.rds"            
+             }
+             
+             showModal(modalDialog(
+                   title = paste ("CRTI Tree Data - Admin - ", input$admin_action_name),
+                   HTML(paste("<dl>",html,"</dl"))
+                   ))
+       })
        
        # Observe a request to add a new dataset
        observeEvent (input$admin_new_data_add, {
