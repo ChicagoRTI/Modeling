@@ -1163,7 +1163,6 @@ server <- function(input, output, session)
              # Make a local copy of global variables (required for parallel processing)
              DO_SCALE <- DO_SCALE
              all_predictors_quantitative <- g_all_predictors_quantitative
-
              model_set <- foreach (i=1:length(data_descriptor_specs), .packages='nnet') %dopar%
              {
                    spec <- data_descriptor_specs[[i]]
@@ -1207,8 +1206,8 @@ server <- function(input, output, session)
                    model$p_values <- matrix()
                    if (spec$calculate_p_values)
                    {
-                         z <- summary(model$model_reduced)$coefficients/summary(model$model_reduced)$standard.errors # from https://stats.stackexchange.com/questions/63222/getting-p-values-for-multinom-in-r-nnet-package
-                         p_values <- (1 - pnorm(abs(z), 0, 1)) * 2
+                         s <- summary(model$model_reduced)
+                         p_values <- (1 - pnorm(abs(s$coefficients/s$standard.errors), 0, 1)) * 2 # from https://stats.stackexchange.com/questions/63222/getting-p-values-for-multinom-in-r-nnet-package
                          model$p_values <- p_values
                    }
 
@@ -1423,7 +1422,6 @@ server <- function(input, output, session)
                                {
                                      spec <- list()
                                      spec$data <- filter_data_x (ctree, species_set, others)
-#                                     spec$data <- filter_data_x (r_values$data_descriptors[[dataset_name]]$ctree, species_set, others)
                                      spec$model_predictors <- g_all_predictors
                                      spec$pred_q_range <- r_values$data_descriptors[[dataset_name]]$pred_q_range
                                      spec$calculate_p_values <- input$admin_update_calculate_p_values
