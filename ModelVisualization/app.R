@@ -1401,27 +1401,26 @@ server <- function(input, output, session)
        
        # Observe the rebuild models button - PARALLEL
        observeEvent (input$admin_update, {
-             
              dataset_names <- if (input$admin_update_name == 'All') names(r_values$data_descriptors) else input$admin_update_name
-             
+             data_specs <- list()
              models <<- list()
              # Collect all of the parameters up front
-             withProgress (message='Building multinomial models', value=.1, max=length(dataset_names)+.1, {
+             withProgress (message='Building multinomial models', value=.1, max=1, {
                    for (dataset_name in dataset_names)
                    {
-                         incProgress (amount=0, detail=dataset_name)
+                         incProgress (amount=0, detail=paste("Preparing", dataset_name))
                          # Refresh the data
                          r_values$data_descriptors[[dataset_name]]$ctree <<- NULL
                          r_values$selected_data_descriptor_name <- dataset_name
                          ctree <- get_data_r()
                          
-                         data_specs <- list()
                          for (species_set in g_species_sets)
                          {
                                for (others in c('Yes', 'No'))
                                {
                                      spec <- list()
                                      spec$data <- filter_data_x (ctree, species_set, others)
+                                     spec$data_nrow <- nrow(spec$data)
                                      spec$model_predictors <- g_all_predictors
                                      spec$pred_q_range <- r_values$data_descriptors[[dataset_name]]$pred_q_range
                                      spec$calculate_p_values <- input$admin_update_calculate_p_values
@@ -1430,13 +1429,17 @@ server <- function(input, output, session)
                                      data_specs <- append(data_specs, list(spec))
                                }
                          }
-                         for (model in build_model_set(data_specs))
-                         {
-                               models[[model$model_hash_id]] <<- model
-                         }
-                         r_values$data_descriptors[[dataset_name]]$models <<- models
-                         incProgress (amount=1)
                    }
+                   incProgress (amount=.7, detail=paste(length(data_specs), "builds running on ", min(detectCores(), length(data_specs)), "processors"))
+                   
+                   # Reorder so the largest datasets are handled first (performance optimization)
+                   data_specs <- data_specs[order(sapply(data_specs, function(x) x$data_nrow), decreasing=TRUE)]
+                   # Build the models
+                   for (model in build_model_set(data_specs))
+                   {
+                         models[[model$model_hash_id]] <<- model
+                   }
+                   r_values$data_descriptors[[dataset_name]]$models <<- models
              })
        })
        
