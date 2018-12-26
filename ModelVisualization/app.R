@@ -303,42 +303,37 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                               column(1, offset=8, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
                         ),
                         g_hr,
-                                    fluidRow (
-                                          column (
-                                                width=3,
-                                                wellPanel (
-                                                      sliderInput (inputId = "ui_abundance_level", label = strong("Abundance level"),  min=1, max=MAX_ABUNDANCE_LEVEL, value=4),
-                                                      checkboxGroupInput (inputId = "ui_species", label = strong("Species"),  choices = "Acer platanoides", selected = "Acer platanoides"),
-                                                      actionButton("ui_species_none", label = strong("None")),
-                                                      actionButton("ui_species_all", label = strong("All"))
-                                                )
-                                          ),
-                                          column (
-                                                width=3,
-                                                wellPanel (
-                                                      sliderInput (inputId = "ui_bins", label = strong("Quantiles"),  min=1, max=10, value=4),
-                                                      selectInput (inputId = "ui_var",  label="", choices=g_all_predictors_quantitative, selected=names(g_all_predictors_quantitative)[1])
-                                                ),
-                                                wellPanel (
-                                                      checkboxGroupInput (inputId = "ui_land_use", label = strong("Land use"),  choices = NULL, selected = NULL),
-                                                      actionButton("ui_land_use_none", label = strong("None")),
-                                                      actionButton("ui_land_use_all", label = strong("All"))
-                                                )
-                                          ),
-                                          column (
-                                                width=6,
-                                                wellPanel (
-                                                      style = "overflow-y:scroll; min-height: 300px; max-height: 1000px",
-                                                      uiOutput(outputId = "ui_chart", width = '600px', height = "300px")
-                                                ),
-                                                fluidRow (
-                                                      column (
-                                                            width = 1,
-                                                            actionButton("ui_flip_chart", label = strong("Flip"))
-                                                      ) 
-                                                      
-                                                )
-                                          )
+                        fluidRow (
+                              column (
+                                    width=3,
+                                    wellPanel (
+                                          sliderInput (inputId = "ui_abundance_level", label = strong("Abundance level"),  min=1, max=MAX_ABUNDANCE_LEVEL, value=4),
+                                          checkboxGroupInput (inputId = "ui_species", label = strong("Species"),  choices = "Acer platanoides", selected = "Acer platanoides"),
+                                          actionButton("ui_species_none", label = strong("None")),
+                                          actionButton("ui_species_all", label = strong("All"))
+                                    )
+                              ),
+                              column (
+                                    width=3,
+                                    wellPanel (
+                                          sliderInput (inputId = "ui_bins", label = strong("Quantiles"),  min=1, max=10, value=4),
+                                          selectInput (inputId = "ui_var",  label="", choices=g_all_predictors_quantitative, selected=names(g_all_predictors_quantitative)[1])
+                                    ),
+                                    wellPanel (
+                                          checkboxGroupInput (inputId = "ui_land_use", label = strong("Land use"),  choices = NULL, selected = NULL),
+                                          actionButton("ui_land_use_none", label = strong("None")),
+                                          actionButton("ui_land_use_all", label = strong("All"))
+                                    )
+                              ),
+                              column (
+                                    width=6,
+                                    wellPanel (
+                                          style = "overflow-y:scroll; min-height: 300px; max-height: 1000px",
+                                          uiOutput(outputId = "ui_chart", width = '600px', height = "300px"),
+                                          actionButton("ui_flip_chart", label = strong("Flip")),
+                                          actionButton("ui_expand_collapse_chart", label = strong("Expand"))
+                                    )
+                              )
                         )
                   ),
 
@@ -449,6 +444,7 @@ server <- function(input, output, session)
                   land_use_list = vector("character"),
                   selected_data_descriptor_name = NULL,          # Psuedo "parameter" passed to get_data
                   flip_chart = TRUE,
+                  collapse_chart = TRUE,
                   selected_land_use = NA,                       # Save state to be used when data_descriptor changes
                   data_descriptors = list(readRDS(g_data_descriptors_fn))[[1]]
       )
@@ -1029,6 +1025,19 @@ server <- function(input, output, session)
              r_values$flip_chart <- !r_values$flip_chart
        })
        
+       # Observe the button to expand/collapse the chart
+       observeEvent(input$ui_expand_collapse_chart, {
+             r_values$collapse_chart <- !r_values$collapse_chart
+             if (r_values$collapse_chart == FALSE)
+             {
+                   updateActionButton(session, inputId = "ui_expand_collapse_chart", label = "Collapse")
+             }
+             else
+             {
+                   updateActionButton(session, inputId = "ui_expand_collapse_chart", label = "Expand")
+             }
+       })
+       
        # Observe the help button
        observeEvent(input$ui_help, {
              showModal(modalDialog(
@@ -1078,14 +1087,25 @@ server <- function(input, output, session)
                    return (NULL)
              }
              ctree$LU <- factor(ctree$LU)
+             
+             # Collapse species names if requested
+             if (r_values$collapse_chart == TRUE)
+             {
+                   ctree[,'GENUSSPECI'] = ""
+                   species_to_chart = list("")
+             }
+             else
+             {
+                   species_to_chart = input$ui_species
+             }
 
-             # Categorize the species by the requested variable. 
+             # Categorize the trees by the requested variable. 
              ctree <- assign_quantiles (ctree, input$ui_var, input$ui_bins)
 
              # Create a data frame to collect the data
              df_cols <- c("Species", "LandUse", levels(ctree$cat))
              fits <- setNames(data.frame(matrix(ncol=length(df_cols), nrow = 0)), df_cols)
-             for(sp in input$ui_species)
+             for(sp in species_to_chart)
              {
                    ctree[,'occur'] = ifelse(ctree[,'GENUSSPECI']==sp, 1,0)
                    fit <- tapply(ctree$occur, list(ctree$LU, ctree$cat), sum, na.rm=TRUE)
@@ -1140,7 +1160,14 @@ server <- function(input, output, session)
        
        # Update the widget height to match the number of facets, then call the function that performs the plot
        output$ui_chart <- renderUI({
-             height <- ifelse (length(input$ui_species)==0, 0, 200+(length(input$ui_species)-1)*100)
+             if (r_values$collapse_chart == TRUE)
+             {
+                   height <- ifelse (length(input$ui_species)==0, 0, 200)
+             }
+             else
+             {
+                   height <- ifelse (length(input$ui_species)==0, 0, 200+(length(input$ui_species)-1)*100)
+             }
              plotOutput("contents", height = height, width = "100%")
        })
        
