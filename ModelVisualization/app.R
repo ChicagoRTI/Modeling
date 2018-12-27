@@ -611,7 +611,7 @@ server <- function(input, output, session)
 
       ################################################################################################################
       # 
-      # Model -> Species occurrence tab
+      # Model -> Species occurence tab
       # 
       ################################################################################################################
       
@@ -1377,6 +1377,7 @@ server <- function(input, output, session)
                    data_descriptor$lu_cats <- levels(data_descriptor$ctree$LU)
                    data_descriptor$main_lu_cats <- names(which(table(data_descriptor$ctree$LU)>400))
                    data_descriptor$top_spps <- get_top_spps (data_descriptor$ctree, data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
+                   data_descriptor$top_genera <- get_top_spps (within (data_descriptor$ctree, GENUSSPECI <- sapply(strsplit(data_descriptor$ctree$GENUSSPECI," "),"[",1)), data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
                    data_descriptor$models <- NULL
 
                    data_descriptor$pred_q_range <- matrix(NA, nrow=length(g_all_predictors_quantitative), ncol=4)
