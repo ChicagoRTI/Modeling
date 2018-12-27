@@ -1228,7 +1228,9 @@ server <- function(input, output, session)
                                  land_use=land_use,
                                  pred_names_q=all_predictors_quantitative,
                                  pred_c_specs=pred_c_specs,
-                                 model_hash_id=spec$model_hash_id)
+                                 model_hash_id=spec$model_hash_id,
+                                 dataset_name=spec$dataset_name)
+                              
 
                    model$p_values <- matrix()
                    if (spec$calculate_p_values)
@@ -1369,7 +1371,7 @@ server <- function(input, output, session)
                   
                    incProgress(1, detail="Creating objects")
                    data_descriptor$name <- input$admin_new_data_name
-                   data_descriptor$file_name <- paste(getwd(), '/', input$admin_new_data_name, '.csv', sep='')
+                   data_descriptor$file_name <- paste(getwd(), '/data/', input$admin_new_data_name, '.csv', sep='')
                    data_descriptor$file_name_original <- input$admin_new_data_file$name
                    data_descriptor$hash <- digest::digest(data_descriptor$ctree)
                    data_descriptor$records <- nrow(data_descriptor$ctree)
@@ -1407,7 +1409,7 @@ server <- function(input, output, session)
        # Observe a request to delete a dataset
        observeEvent (input$admin_delete, {
 
-             withProgress (message=paste("Adding new dataset", input$admin_delete_name, sep=' '),  value=0, max=1, {
+             withProgress (message=paste("Deleting dataset", input$admin_delete_name, sep=' '),  value=0, max=1, {
                    incProgress(1, detail="Processing delete request")
                    # Delete the local file (if it exists)
                    if (file.exists(r_values$data_descriptors[[input$admin_delete_name]]$file_name))
@@ -1431,7 +1433,6 @@ server <- function(input, output, session)
        observeEvent (input$admin_update, {
              dataset_names <- if (input$admin_update_name == 'All') names(r_values$data_descriptors) else input$admin_update_name
              data_specs <- list()
-             models <<- list()
              # Collect all of the parameters up front
              withProgress (message='Building multinomial models', value=.1, max=1, {
                    for (dataset_name in dataset_names)
@@ -1454,6 +1455,7 @@ server <- function(input, output, session)
                                      spec$calculate_p_values <- input$admin_update_calculate_p_values
                                      spec$iterations <- input$admin_update_iterations
                                      spec$model_hash_id <- get_model_hash_id(dataset_name, levels(spec$data$LU), species_set, g_all_predictors, input$filter_model_type, others) 
+                                     spec$dataset_name = dataset_name
                                      data_specs <- append(data_specs, list(spec))
                                }
                          }
@@ -1462,12 +1464,11 @@ server <- function(input, output, session)
                    
                    # Reorder so the largest datasets are handled first (performance optimization)
                    data_specs <- data_specs[order(sapply(data_specs, function(x) x$data_nrow), decreasing=TRUE)]
-                   # Build the models
+                   # Build the models and stash the results in the proper data descriptors
                    for (model in build_model_set(data_specs))
                    {
-                         models[[model$model_hash_id]] <<- model
+                         r_values$data_descriptors[[model$dataset_name]]$models[[model$model_hash_id]] <<- model
                    }
-                   r_values$data_descriptors[[dataset_name]]$models <<- models
              })
        })
        
