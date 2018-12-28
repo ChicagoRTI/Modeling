@@ -94,11 +94,9 @@ read_data <- function (fn)
       ctree <- ctree[, c('GENUSSPECI',sort(g_all_predictors))]
       # Convert model categories to factors that match the UI names
       ctree$LU <- as.factor(g_land_use$V2[as.numeric(as.character(ctree$LU))])
-      # Add a column with the genus name
-      ctree$GENUS <-  sapply(strsplit(ctree$GENUSSPECI," "),"[",1)
-      
-      #ctree$GENUSSPECI = as.factor(ctree$GENUSSPECI)
-      #ctree$GENUS = as.factor(ctree$GENUS)
+      # Add a column with the genus name and convert taxanomic ranks to factors
+      ctree$GENUS <-  as.factor(sapply(strsplit(ctree$GENUSSPECI," "),"[",1))
+      ctree$GENUSSPECI = as.factor(ctree$GENUSSPECI)
       
       return (ctree)
 }
@@ -106,6 +104,10 @@ read_data <- function (fn)
 
 filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
 {
+      # Convert columns back to non-factors so we can manipulate the contents better
+      ctree$GENUSSPECI <- as.character(ctree$GENUSSPECI)
+      ctree$GENUS <- as.character(ctree$GENUS)
+      
       if (filter_species_set == 'Top 10 species')
       {
             species_names_all <- sort(names(head(sort(table(factor(ctree$GENUSSPECI)), decreasing = TRUE), TOP_TEN)))
@@ -128,8 +130,11 @@ filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
             species_names_all <- c(species_names_all, "Other")
       }
       ctree <- subset(ctree, GENUSSPECI %in% species_names_all)
-      ctree$LU <- factor(ctree$LU)
-      ctree$GENUSSPECI <- factor(ctree$GENUSSPECI)
+      
+      # Convert the columns back to factors
+      ctree$LU <- as.factor(ctree$LU)
+      ctree$GENUSSPECI <- as.factor(ctree$GENUSSPECI)
+      ctree$GENUS <- as.factor(ctree$GENUS)
       return (ctree)
 }
 
@@ -943,6 +948,11 @@ server <- function(input, output, session)
        
        get_species <- function(ctree, lu_cats, abundance_level, species_genera)
        {
+             if (is.null(ctree))
+             {
+                   return (NULL)
+             }
+
              spps <- vector('character')
              if (species_genera == 'Species')
              {
@@ -960,11 +970,11 @@ server <- function(input, output, session)
              ctree <- ctree[ctree$LU %in% lu_cats,]
              if (species_genera == 'Species')
              {
-                   return (names(sort(table(ctree[ctree$GENUSSPECI %in% spps,]$GENUSSPECI), decreasing = TRUE)))
+                   return (names(sort(table(droplevels(ctree[ctree$GENUSSPECI %in% spps,]$GENUSSPECI)), decreasing = TRUE)))
              }
              else
              {
-                   return (names(sort(table(ctree[ctree$GENUS %in% spps,]$GENUS), decreasing = TRUE)))
+                   return (names(sort(table(droplevels(ctree[ctree$GENUS %in% spps,]$GENUS)), decreasing = TRUE)))
              }
        }
        
