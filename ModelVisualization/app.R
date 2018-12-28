@@ -94,6 +94,8 @@ read_data <- function (fn)
       ctree <- ctree[, c('GENUSSPECI',sort(g_all_predictors))]
       # Convert model categories to factors that match the UI names
       ctree[['LU']] <- as.factor(g_land_use$V2[as.numeric(as.character(ctree$LU))])
+      # Add a column with the genus name
+      ctree[['GENUS']] <-  sapply(strsplit(ctree$GENUSSPECI," "),"[",1)
       
       return (ctree)
 }
@@ -300,7 +302,8 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                         fluidRow
                         ( 
                               column(3,selectInput(inputId = "ui_data_descriptor_name", label = strong("Dataset"),  choices = '', selected = '')),
-                              column(1, offset=8, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
+                              column(3,radioButtons(inputId = "ui_species_genera", label = "",  choices = c('Species', 'Genera'), selected = 'Species')),
+                              column(1, offset=5, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
                         ),
                         g_hr,
                         fluidRow (
@@ -935,16 +938,31 @@ server <- function(input, output, session)
        # 
        ################################################################################################################
        
-       get_species <- function(ctree, lu_cats, abundance_level)
+       get_species <- function(ctree, lu_cats, abundance_level, species_genera)
        {
              spps <- vector('character')
-             top_spps <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$top_spps
+             if (species_genera == 'Species')
+             {
+                   top_spps <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$top_spps
+             }
+             else
+             {
+                   top_spps <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$top_genera
+             }
              for (lu_cat in lu_cats)
              {
                    spps <- unique(c(spps, na.omit(rownames(top_spps[top_spps[,lu_cat]<=abundance_level,,drop=FALSE]))))
              }
-             return (sort(spps))
-             
+             # Return the list of species/genera sorted by abundance
+             ctree <- ctree[ctree$LU %in% lu_cats,]
+             if (species_genera == 'Species')
+             {
+                   return (names(sort(table(ctree[ctree$GENUSSPECI %in% spps,]$GENUSSPECI), decreasing = TRUE)))
+             }
+             else
+             {
+                   return (names(sort(table(ctree[ctree$GENUS %in% spps,]$GENUS), decreasing = TRUE)))
+             }
        }
        
        assign_quantiles <- function(full, var='HEIGHT_MEAN', num_bins=5)
@@ -975,6 +993,11 @@ server <- function(input, output, session)
              }
              return(full)
        }
+       
+       # Observe the species/genera radio button
+       observeEvent(input$ui_species_genera, {
+             update_species_list()
+       })
        
        # Observe the abundance level slider
        observeEvent(input$ui_abundance_level, {
@@ -1055,7 +1078,7 @@ server <- function(input, output, session)
        
        update_species_list <- reactive({
              ctree <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$ctree
-             r_values$display_species_list <- get_species(ctree, Reduce (intersect,list(r_values$land_use_list, r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats )), r_values$abundance_level)
+             r_values$display_species_list <- get_species(ctree, Reduce (intersect,list(r_values$land_use_list, r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats )), r_values$abundance_level, input$ui_species_genera)
              updateCheckboxGroupInput(session, "ui_species", choices = r_values$display_species_list, selected = r_values$selected_species_list)
        })
        
@@ -1078,10 +1101,12 @@ server <- function(input, output, session)
        # Plot the chart (note that this is wrapped by renderUI to allow the height to vary)
        output$contents <- renderPlot({ 
              var_descs <- g_all_predictors_quantitative
+             
+             species_genera_col = ifelse (input$ui_species_genera == 'Species', 'GENUSSPECI', 'GENUS')
              # Keep only the trees in the requested set of land uses and species
              ctree <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$ctree
              ctree <- ctree[ctree$LU %in% r_values$land_use_list,]
-             ctree <- ctree[ctree$GENUSSPECI %in% input$ui_species,]
+             ctree <- ctree[ctree[,species_genera_col] %in% input$ui_species,]
              if(nrow(ctree)==0)
              {
                    return (NULL)
@@ -1091,7 +1116,7 @@ server <- function(input, output, session)
              # Collapse species names if requested
              if (r_values$collapse_chart == TRUE)
              {
-                   ctree[,'GENUSSPECI'] = ""
+                   ctree[,species_genera_col] = ""
                    species_to_chart = list("")
              }
              else
@@ -1107,7 +1132,7 @@ server <- function(input, output, session)
              fits <- setNames(data.frame(matrix(ncol=length(df_cols), nrow = 0)), df_cols)
              for(sp in species_to_chart)
              {
-                   ctree[,'occur'] = ifelse(ctree[,'GENUSSPECI']==sp, 1,0)
+                   ctree[,'occur'] = ifelse(ctree[,species_genera_col]==sp, 1,0)
                    fit <- tapply(ctree$occur, list(ctree$LU, ctree$cat), sum, na.rm=TRUE)
                    fit <- cbind(Species=sp, LandUse=rownames(fit), as.data.frame(fit))
                    fits <- rbind(fits,fit) 
