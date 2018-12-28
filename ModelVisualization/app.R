@@ -93,9 +93,12 @@ read_data <- function (fn)
       # Arrange predictor columns in alphabetical order (no special reason for doing this)
       ctree <- ctree[, c('GENUSSPECI',sort(g_all_predictors))]
       # Convert model categories to factors that match the UI names
-      ctree[['LU']] <- as.factor(g_land_use$V2[as.numeric(as.character(ctree$LU))])
+      ctree$LU <- as.factor(g_land_use$V2[as.numeric(as.character(ctree$LU))])
       # Add a column with the genus name
-      ctree[['GENUS']] <-  sapply(strsplit(ctree$GENUSSPECI," "),"[",1)
+      ctree$GENUS <-  sapply(strsplit(ctree$GENUSSPECI," "),"[",1)
+      
+      #ctree$GENUSSPECI = as.factor(ctree$GENUSSPECI)
+      #ctree$GENUS = as.factor(ctree$GENUS)
       
       return (ctree)
 }
@@ -105,13 +108,13 @@ filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
 {
       if (filter_species_set == 'Top 10 species')
       {
-            species_names_all <- sort(names(head(sort(table(factor(ctree[['GENUSSPECI']])), decreasing = TRUE), TOP_TEN)))
+            species_names_all <- sort(names(head(sort(table(factor(ctree$GENUSSPECI)), decreasing = TRUE), TOP_TEN)))
       }
       else if (filter_species_set ==  'Top 10 genera')
       {
             # Coerce all species names to genus only, then select the top 10
-            ctree[['GENUSSPECI']] <-  sapply(strsplit(ctree$GENUSSPECI," "),"[",1)
-            species_names_all <- sort(names(head(sort(table(factor( ctree[['GENUSSPECI']]  )), decreasing = TRUE), TOP_TEN)))
+            ctree$GENUSSPECI <-  ctree$GENUS
+            species_names_all <- sort(names(head(sort(table(factor(ctree$GENUSSPECI)), decreasing = TRUE), TOP_TEN)))
       }
       else 
       {
@@ -121,7 +124,7 @@ filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
       if (filter_species_set_others == 'Yes')
       {
             # Coerce all non-common species names to "Other"
-            ctree[['GENUSSPECI']] <- ifelse ((match(ctree[['GENUSSPECI']], species_names_all, nomatch = 0) > 0), ctree[['GENUSSPECI']], "Other")
+            ctree$GENUSSPECI <- ifelse ((match(ctree$GENUSSPECI, species_names_all, nomatch = 0) > 0), ctree$GENUSSPECI, "Other")
             species_names_all <- c(species_names_all, "Other")
       }
       ctree <- subset(ctree, GENUSSPECI %in% species_names_all)
