@@ -1044,15 +1044,15 @@ server <- function(input, output, session)
              r_values$selected_species_list <- setdiff(unique(c(r_values$selected_species_list, selected)), not_selected)
        },ignoreNULL=FALSE)
        
-       # Observe the button to clear the selected species
+       # Observe the button to deselect all displayed species
        observeEvent(input$ui_species_none, {
-             r_values$selected_species_list <- NULL
+             r_values$selected_species_list <- setdiff(r_values$selected_species_list, r_values$display_species_list)
              update_species_list()
        })
 
-       # Observe the button to select all species
+       # Observe the button to select all displayed species
        observeEvent(input$ui_species_all, {
-             r_values$selected_species_list <- r_values$display_species_list
+             r_values$selected_species_list <- unique(c(r_values$display_species_list,r_values$selected_species_list))
              update_species_list()
        })
        
