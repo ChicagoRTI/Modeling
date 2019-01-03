@@ -40,6 +40,8 @@ MAX_ABUNDANCE_LEVEL <- 10
 g_land_use <- read.delim('https://don-morrison-2000.github.io/data/land_use.csv', as.is=TRUE, header=FALSE)
 g_common_species <- sort(unique(read.delim('https://don-morrison-2000.github.io/data/common_species.csv', as.is=TRUE, header=FALSE)$V1))
 g_species_sets <- c("Top 10 species", "Top 10 genera", "Common species")
+g_usda_genus_to_family_map <- read.delim(file="https://don-morrison-2000.github.io/data/usda_genus_to_family_map.csv", sep=',', header=TRUE, row.names=1)
+g_taxonomy_map = data.frame(Species=character(), Genus=character(), Family=character())
 
 # Define all possible quantitative predictors
 g_all_predictors_quantitative <- c (
@@ -96,7 +98,7 @@ read_data <- function (fn)
       ctree$LU <- as.factor(g_land_use$V2[as.numeric(as.character(ctree$LU))])
       # Add a column with the genus name and convert taxanomic ranks to factors
       ctree$GENUS <-  as.factor(sapply(strsplit(ctree$GENUSSPECI," "),"[",1))
-      ctree$GENUSSPECI = as.factor(ctree$GENUSSPECI)
+      ctree$GENUSSPECI <- as.factor(ctree$GENUSSPECI)
       
       return (ctree)
 }
@@ -138,6 +140,21 @@ filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
       return (ctree)
 }
 
+update_taxonomy_map <- function (ctree)
+{
+      # Create a data frame - each row is a unique genus/species in the survey data
+      taxonomy_map <- data.frame(Species=unique(as.character(ctree$GENUSSPECI)),stringsAsFactors=FALSE)
+      taxonomy_map$Genus <-  as.factor(sapply(strsplit(taxonomy_map$Species," "),"[",1))
+      
+      # Add the family column to the dataframe and set unresolved mappings to 'Unknown'
+      taxonomy_map$Family = g_usda_genus_to_family_map[as.character(taxonomy_map$Genus),'family']
+      levels(taxonomy_map$Family) <- c(levels(taxonomy_map$Family), 'Unknown')
+      taxonomy_map[is.na(taxonomy_map$Family),'Family'] <- 'Unknown'
+      
+      # Update the global taxonomy map with any new entries introduced by this dataset
+      g_taxonomy_map <<- unique(rbind(g_taxonomy_map, taxonomy_map))
+      g_taxonomy_map <<- g_taxonomy_map[order(g_taxonomy_map$Species),]
+}
 
 
 # Functions to allow prediction page to generated programatically
@@ -611,6 +628,7 @@ server <- function(input, output, session)
                         }
                         ctree <- read_data(fn) 
                         r_values$data_descriptors[[r_values$selected_data_descriptor_name]]$ctree <- ctree
+                        update_taxonomy_map(ctree)
                   })
             }
             return (ctree)
@@ -1438,6 +1456,7 @@ server <- function(input, output, session)
                    updateSelectInput(session, inputId='ui_data_descriptor_name', choices = names(r_values$data_descriptors))
                    
                    file.copy (input$admin_new_data_file$datapath, data_descriptor$file_name, overwrite=TRUE )
+                   update_taxonomy_map(data_descriptor$ctree)
                   
                    incProgress(1, detail="Success")
                    Sys.sleep(2)
