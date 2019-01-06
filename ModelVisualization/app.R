@@ -42,6 +42,7 @@ g_common_species <- sort(unique(read.delim('https://don-morrison-2000.github.io/
 g_species_sets <- c("Top 10 species", "Top 10 genera", "Common species")
 g_usda_genus_to_family_map <- read.delim(file="https://don-morrison-2000.github.io/data/usda_genus_to_family_map.csv", sep=',', header=TRUE, row.names=1)
 g_taxonomy_map = data.frame(Species=character(), Genus=character(), Family=character())
+g_taxonomic_levels = c("Species", "Genus", "Family")
 
 # Define all possible quantitative predictors
 g_all_predictors_quantitative <- c (
@@ -97,18 +98,15 @@ read_data <- function (fn)
       # Convert model categories to factors that match the UI names
       ctree$LU <- as.factor(g_land_use$V2[as.numeric(as.character(ctree$LU))])
       # Add a column with the genus name and convert taxanomic ranks to factors
-      ctree$GENUS <-  as.factor(sapply(strsplit(ctree$GENUSSPECI," "),"[",1))
       ctree$GENUSSPECI <- as.factor(ctree$GENUSSPECI)
       
       return (ctree)
 }
 
-
 filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
 {
       # Convert columns back to non-factors so we can manipulate the contents better
       ctree$GENUSSPECI <- as.character(ctree$GENUSSPECI)
-      ctree$GENUS <- as.character(ctree$GENUS)
       
       if (filter_species_set == 'Top 10 species')
       {
@@ -117,7 +115,7 @@ filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
       else if (filter_species_set ==  'Top 10 genera')
       {
             # Coerce all species names to genus only, then select the top 10
-            ctree$GENUSSPECI <-  ctree$GENUS
+            ctree$GENUSSPECI <-  as.character(g_taxonomy_map[ctree$GENUSSPECI, 'Genus'])
             species_names_all <- sort(names(head(sort(table(factor(ctree$GENUSSPECI)), decreasing = TRUE), TOP_TEN)))
       }
       else 
@@ -136,9 +134,9 @@ filter_data_x <- function (ctree, filter_species_set, filter_species_set_others)
       # Convert the columns back to factors
       ctree$LU <- as.factor(ctree$LU)
       ctree$GENUSSPECI <- as.factor(ctree$GENUSSPECI)
-      ctree$GENUS <- as.factor(ctree$GENUS)
       return (ctree)
 }
+
 
 update_taxonomy_map <- function (ctree)
 {
@@ -151,9 +149,11 @@ update_taxonomy_map <- function (ctree)
       levels(taxonomy_map$Family) <- c(levels(taxonomy_map$Family), 'Unknown')
       taxonomy_map[is.na(taxonomy_map$Family),'Family'] <- 'Unknown'
       
-      # Update the global taxonomy map with any new entries introduced by this dataset
-      g_taxonomy_map <<- unique(rbind(g_taxonomy_map, taxonomy_map))
-      g_taxonomy_map <<- g_taxonomy_map[order(g_taxonomy_map$Species),]
+      # Add in the existing entries in the global taxonomy map and return it (sorted by species)
+      taxonomy_map <- unique(rbind(taxonomy_map, g_taxonomy_map))
+      taxonomy_map <- taxonomy_map[order(taxonomy_map$Species),]
+      row.names(taxonomy_map) <- taxonomy_map$Species
+      return (taxonomy_map)
 }
 
 
@@ -327,18 +327,18 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                         fluidRow
                         ( 
                               column(3,selectInput(inputId = "ui_data_descriptor_name", label = strong("Dataset"),  choices = '', selected = '')),
-                              column(3,radioButtons(inputId = "ui_species_genera", label = "",  choices = c('Species', 'Genera'), selected = 'Species')),
+                              column(3,radioButtons(inputId = "ui_taxonomic_unit", label = "",  choices = g_taxonomic_levels, selected = g_taxonomic_levels[1])),
                               column(1, offset=5, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
                         ),
                         g_hr,
                         fluidRow (
                               column (
                                     width=3,
-                                    wellPanel (
+                                    wellPanel (id="ui_taxa_panel",
                                           sliderInput (inputId = "ui_abundance_level", label = strong("Abundance level"),  min=1, max=MAX_ABUNDANCE_LEVEL, value=4),
-                                          checkboxGroupInput (inputId = "ui_species", label = strong("Species"),  choices = "Acer platanoides", selected = "Acer platanoides"),
-                                          actionButton("ui_species_none", label = strong("None")),
-                                          actionButton("ui_species_all", label = strong("All"))
+                                          checkboxGroupInput (inputId = "ui_taxon", label = strong("Taxon"),  choices = "Acer platanoides", selected = "Acer platanoides"),
+                                          actionButton("ui_taxon_none", label = strong("None")),
+                                          actionButton("ui_taxon_all", label = strong("All"))
                                     )
                               ),
                               column (
@@ -467,8 +467,8 @@ server <- function(input, output, session)
                   y = NULL,                                 # Zoomable y coordinate
                   run_predict_go = FALSE,                   # Flip the setting to trigger an update on the predictions
                   abundance_level = 0,
-                  display_species_list = vector("character"),   # List of species to display
-                  selected_species_list = vector("character"),  # Selected species (including those not dislayed)
+                  display_taxon_list = vector("character"),   # List of species to display
+                  selected_taxon_list = vector("character"),  # Selected species (including those not dislayed)
                   land_use_list = vector("character"),
                   selected_data_descriptor_name = NULL,          # Psuedo "parameter" passed to get_data
                   flip_chart = TRUE,
@@ -628,7 +628,7 @@ server <- function(input, output, session)
                         }
                         ctree <- read_data(fn) 
                         r_values$data_descriptors[[r_values$selected_data_descriptor_name]]$ctree <- ctree
-                        update_taxonomy_map(ctree)
+                        g_taxonomy_map <<- update_taxonomy_map(ctree)
                   })
             }
             return (ctree)
@@ -960,42 +960,32 @@ server <- function(input, output, session)
        
        ################################################################################################################
        # 
-       # Describe species by frequency by landuse tab
+       # Describe taxa by frequency by landuse tab
        # 
        ################################################################################################################
-       
-       get_species <- function(ctree, lu_cats, abundance_level, species_genera)
+      
+       get_taxa <- function(ctree, lu_cats, abundance_level, taxonomic_rank)
        {
-             if (is.null(ctree))
-             {
-                   return (NULL)
-             }
-
-             spps <- vector('character')
-             if (species_genera == 'Species')
-             {
-                   top_spps <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$top_spps
-             }
-             else
-             {
-                   top_spps <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$top_genera
-             }
-             for (lu_cat in lu_cats)
-             {
-                   spps <- unique(c(spps, na.omit(rownames(top_spps[top_spps[,lu_cat]<=abundance_level,,drop=FALSE]))))
-             }
-             # Return the list of species/genera sorted by abundance
-             ctree <- ctree[ctree$LU %in% lu_cats,]
-             if (species_genera == 'Species')
-             {
-                   return (names(sort(table(droplevels(ctree[ctree$GENUSSPECI %in% spps,]$GENUSSPECI)), decreasing = TRUE)))
-             }
-             else
-             {
-                   return (names(sort(table(droplevels(ctree[ctree$GENUS %in% spps,]$GENUS)), decreasing = TRUE)))
-             }
+            if (is.null(ctree))
+            {
+                  return (NULL)
+            }
+            # Add a column with the taxa for the specified taxonomic rank
+            ctree[taxonomic_rank] <- as.factor(g_taxonomy_map[as.character(ctree$GENUSSPECI), taxonomic_rank])
+            
+            taxa <- vector('character')
+            top_taxa <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$top_taxa[[taxonomic_rank]]
+            for (lu_cat in lu_cats)
+            {
+                  taxa <- unique(c(taxa, na.omit(rownames(top_taxa[top_taxa[,lu_cat]<=abundance_level,,drop=FALSE]))))
+            }
+            # Return the list of taxa sorted by abundance
+            ctree <- ctree[ctree$LU %in% lu_cats,]
+            return (names(sort(table(droplevels(ctree[ctree[[taxonomic_rank]] %in% taxa,][[taxonomic_rank]])), decreasing = TRUE)))
        }
-       
+      
+      
+             
        assign_quantiles <- function(full, var='HEIGHT_MEAN', num_bins=5)
        {
              # Calculate the break points - evenly spread acress the range
@@ -1025,21 +1015,21 @@ server <- function(input, output, session)
              return(full)
        }
        
-       # Observe the species/genera radio button
-       observeEvent(input$ui_species_genera, {
-             update_species_list()
+       # Observe the taxonomic unit radio button
+       observeEvent(input$ui_taxonomic_unit, {
+             update_taxon_list()
        })
        
        # Observe the abundance level slider
        observeEvent(input$ui_abundance_level, {
              r_values$abundance_level <- input$ui_abundance_level
-             update_species_list()
+             update_taxon_list()
        })
        
        # Observe the land use checkbox list
        observeEvent(input$ui_land_use, {
              r_values$land_use_list <- input$ui_land_use
-             update_species_list()
+             update_taxon_list()
        },ignoreNULL=FALSE)
        
        
@@ -1055,23 +1045,23 @@ server <- function(input, output, session)
              updateCheckboxGroupInput(session, "ui_land_use", choices = r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats, selected = r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats)
        })
        
-       # Observe the species checkbox list
-       observeEvent(input$ui_species, {
-             selected <- input$ui_species
-             not_selected <- setdiff(r_values$display_species_list, selected)
-             r_values$selected_species_list <- setdiff(unique(c(r_values$selected_species_list, selected)), not_selected)
+       # Observe the taxon checkbox list
+       observeEvent(input$ui_taxon, {
+             selected <- input$ui_taxon
+             not_selected <- setdiff(r_values$display_taxon_list, selected)
+             r_values$selected_taxon_list <- setdiff(unique(c(r_values$selected_taxon_list, selected)), not_selected)
        },ignoreNULL=FALSE)
        
-       # Observe the button to deselect all displayed species
-       observeEvent(input$ui_species_none, {
-             r_values$selected_species_list <- setdiff(r_values$selected_species_list, r_values$display_species_list)
-             update_species_list()
+       # Observe the button to deselect all displayed taxa
+       observeEvent(input$ui_taxon_none, {
+             r_values$selected_taxon_list <- setdiff(r_values$selected_taxon_list, r_values$display_taxon_list)
+             update_taxon_list()
        })
 
-       # Observe the button to select all displayed species
-       observeEvent(input$ui_species_all, {
-             r_values$selected_species_list <- unique(c(r_values$display_species_list,r_values$selected_species_list))
-             update_species_list()
+       # Observe the button to select all displayed taxa
+       observeEvent(input$ui_taxon_all, {
+             r_values$selected_taxon_list <- unique(c(r_values$display_taxon_list,r_values$selected_taxon_list))
+             update_taxon_list()
        })
        
        # Observe the button to flip the chart
@@ -1098,19 +1088,27 @@ server <- function(input, output, session)
                    title = "CRTI Tree Data - Describe",
                    HTML("
                         <dl>
-                              <dt>Abundance level</dt><dd>Adjusts how many species to display in the list of species. Move the slider to increase or decrease the size of the list of species. When the slider is set to 'n', the species list represents the union of the 'n' most abundant species in each selected land use</dd>
-                              <dt>Species</dt><dd>Which species to chart. The available species reacts to changes in the abundance level and the selected land uses</dd>
-                              <dt>Quantiles</dt><dd>Quantiles are cut points dividing a set of observations in a sample into a number of equal sized groups (or as close as possible to equal) based on the value of a quantitative variable. The set of observations includes those records in the dataset where the species name and land use are selected.</dd>
+                              <dt>Abundance level</dt><dd>Adjusts how many taxa to display in the list. Move the slider to increase or decrease the size of the list. When the slider is set to 'n', the taxon list represents the union of the 'n' most abundant taxa in each selected land use</dd>
+                              <dt>Taxon</dt><dd>Which taxa to chart. The available taxa reacts to changes in the abundance level and the selected land uses</dd>
+                              <dt>Quantiles</dt><dd>Quantiles are cut points dividing a set of observations in a sample into a number of equal sized groups (or as close as possible to equal) based on the value of a quantitative variable. The set of observations includes those records in the dataset where the taxon and land use are selected.</dd>
                               <dt>Land use</dt><dd>The land uses to chart</dd>
                         </dl>
                         ")
              ))
        })
        
-       update_species_list <- reactive({
+       update_taxon_list <- reactive({
              ctree <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$ctree
-             r_values$display_species_list <- get_species(ctree, Reduce (intersect,list(r_values$land_use_list, r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats )), r_values$abundance_level, input$ui_species_genera)
-             updateCheckboxGroupInput(session, "ui_species", choices = r_values$display_species_list, selected = r_values$selected_species_list)
+             r_values$display_taxon_list <- get_taxa(ctree, Reduce (intersect,list(r_values$land_use_list, r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats )), r_values$abundance_level, input$ui_taxonomic_unit)
+             if (is.null(r_values$display_taxon_list))
+             {
+                   shinyjs::hide("ui_taxa_panel")
+             }
+             else
+             {
+                   shinyjs::show("ui_taxa_panel")
+             }
+             updateCheckboxGroupInput(session, "ui_taxon", choices = r_values$display_taxon_list, selected = r_values$selected_taxon_list)
        })
        
        # Observe a change in the data_descriptor name
@@ -1124,7 +1122,7 @@ server <- function(input, output, session)
              {
                   r_values$selected_data_descriptor_name <- input$ui_data_descriptor_name
                   get_data_r()
-                  update_species_list()
+                  update_taxon_list()
                   updateCheckboxGroupInput(session, "ui_land_use", choices = r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats, selected = r_values$data_descriptors[[input$ui_data_descriptor_name]]$main_lu_cats)
              }
        })
@@ -1133,39 +1131,39 @@ server <- function(input, output, session)
        output$contents <- renderPlot({ 
              var_descs <- g_all_predictors_quantitative
              
-             species_genera_col = ifelse (input$ui_species_genera == 'Species', 'GENUSSPECI', 'GENUS')
-             # Keep only the trees in the requested set of land uses and species
+             # Keep only the trees in the requested set of land uses and taxa
              ctree <- r_values$data_descriptors[[input$ui_data_descriptor_name]]$ctree
              ctree <- ctree[ctree$LU %in% r_values$land_use_list,]
-             ctree <- ctree[ctree[,species_genera_col] %in% input$ui_species,]
+             ctree$taxon <-  g_taxonomy_map[ctree$GENUSSPECI, input$ui_taxonomic_unit]
+             ctree <- ctree[ctree$taxon %in% input$ui_taxon,]
              if(nrow(ctree)==0)
              {
                    return (NULL)
              }
              ctree$LU <- factor(ctree$LU)
              
-             # Collapse species names if requested
+             # Collapse taxon names if requested
              if (r_values$collapse_chart == TRUE)
              {
-                   ctree[,species_genera_col] = ""
-                   species_to_chart = list("")
+                   ctree$taxon = ""
+                   taxa_to_chart = list("")
              }
              else
              {
-                   species_to_chart = input$ui_species
+                   taxa_to_chart = input$ui_taxon
              }
 
              # Categorize the trees by the requested variable. 
              ctree <- assign_quantiles (ctree, input$ui_var, input$ui_bins)
 
              # Create a data frame to collect the data
-             df_cols <- c("Species", "LandUse", levels(ctree$cat))
+             df_cols <- c("Taxon", "LandUse", levels(ctree$cat))
              fits <- setNames(data.frame(matrix(ncol=length(df_cols), nrow = 0)), df_cols)
-             for(sp in species_to_chart)
+             for(taxon in taxa_to_chart)
              {
-                   ctree[,'occur'] = ifelse(ctree[,species_genera_col]==sp, 1,0)
+                   ctree[,'occur'] = ifelse(ctree$taxon==taxon, 1,0)
                    fit <- tapply(ctree$occur, list(ctree$LU, ctree$cat), sum, na.rm=TRUE)
-                   fit <- cbind(Species=sp, LandUse=rownames(fit), as.data.frame(fit))
+                   fit <- cbind(Taxon=taxon, LandUse=rownames(fit), as.data.frame(fit))
                    fits <- rbind(fits,fit) 
              }
              if (nrow(fits) == 0)
@@ -1176,15 +1174,15 @@ server <- function(input, output, session)
              fits <- replace(fits,is.na(fits),0)
              yrange <- range(as.numeric(as.matrix(fits[3:ncol(fits)])),na.rm=TRUE)
              
-             # Melt the dataframe to prepare it for plotting. This results in 4 columns: 1) Species, 2) LandUse, 3)Category, 4) fit value
-             fits <- melt(fits, c(id="Species","LandUse"), variable.name="Category")
+             # Melt the dataframe to prepare it for plotting. This results in 4 columns: 1) Taxon, 2) LandUse, 3)Category, 4) fit value
+             fits <- melt(fits, c(id="Taxon","LandUse"), variable.name="Category")
              
              if (r_values$flip_chart)
              {
                    # Plot the results
                    g <- ggplot(fits,aes(LandUse,value, fill=as.factor(Category))) +
                          geom_bar(position="dodge", stat="identity") +
-                         facet_wrap(~Species, ncol=1) +
+                         facet_wrap(~Taxon, ncol=1) +
                          xlab('Land Use') +
                          ylab('Ocurrences') +
                          scale_fill_discrete(name=names(var_descs)[which(var_descs==input$ui_var)]) +
@@ -1199,7 +1197,7 @@ server <- function(input, output, session)
              {
                    g <- ggplot(fits,aes(Category,value, fill=as.factor(LandUse))) +
                          geom_bar(position="dodge", stat="identity") +
-                         facet_wrap(~Species, ncol=1) +
+                         facet_wrap(~Taxon, ncol=1) +
                          xlab(names(var_descs)[which(var_descs==input$ui_var)]) +
                          ylab('Ocurrences') +
                          scale_fill_discrete(name="Land use") +
@@ -1218,11 +1216,11 @@ server <- function(input, output, session)
        output$ui_chart <- renderUI({
              if (r_values$collapse_chart == TRUE)
              {
-                   height <- ifelse (length(input$ui_species)==0, 0, 200)
+                   height <- ifelse (length(input$ui_taxon)==0, 0, 200)
              }
              else
              {
-                   height <- ifelse (length(input$ui_species)==0, 0, 200+(length(input$ui_species)-1)*100)
+                   height <- ifelse (length(input$ui_taxon)==0, 0, 200+(length(input$ui_taxon)-1)*100)
              }
              plotOutput("contents", height = height, width = "100%")
        })
@@ -1319,14 +1317,18 @@ server <- function(input, output, session)
              return (data)
        })
        
-       get_top_spps <- function (ctree, lu_cats, limit)
+       
+       get_top_spps <- function (ctree, taxonomic_rank, lu_cats, limit)
        {
+             # Add a column with the specified taxonomic rank
+             ctree[taxonomic_rank] <- g_taxonomy_map[as.character(ctree$GENUSSPECI), taxonomic_rank]
+             
              top_spps_names = NULL
              top_spps_lu = list()
              # Get the top x species for each land use, plus combine them into a single list
              for (lu_cat in lu_cats)
              {
-                   t <- sort(table(factor(ctree$GENUSSPECI[ctree$LU==lu_cat])), decreasing = TRUE)[1:limit,drop=FALSE]
+                   t <- sort(table(ctree[[taxonomic_rank]][ctree$LU==lu_cat]), decreasing = TRUE)[1:limit,drop=FALSE]
                    for (i in seq(1:nrow(t))) {t[i]<-i}
                    top_spps_lu[[lu_cat]] <- t
                    top_spps_names <- unique(c(top_spps_names, names(t)))
@@ -1424,7 +1426,8 @@ server <- function(input, output, session)
                    data_descriptor = list()
                    incProgress(1, detail="Reading data")
                    data_descriptor$ctree <- read_data (input$admin_new_data_file$datapath) 
-                  
+                   g_taxonomy_map <<- update_taxonomy_map(data_descriptor$ctree)
+                   
                    incProgress(1, detail="Creating objects")
                    data_descriptor$name <- input$admin_new_data_name
                    data_descriptor$file_name <- paste(getwd(), '/data/', input$admin_new_data_name, '.csv', sep='')
@@ -1434,9 +1437,13 @@ server <- function(input, output, session)
                    data_descriptor$top_ten_species <- sort(names(head(sort(table(factor(data_descriptor$ctree[['GENUSSPECI']])), decreasing = TRUE), TOP_TEN)))
                    data_descriptor$lu_cats <- levels(data_descriptor$ctree$LU)
                    data_descriptor$main_lu_cats <- names(which(table(data_descriptor$ctree$LU)>400))
-                   data_descriptor$top_spps <- get_top_spps (data_descriptor$ctree, data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
-                   data_descriptor$top_genera <- get_top_spps (within (data_descriptor$ctree, GENUSSPECI <- sapply(strsplit(data_descriptor$ctree$GENUSSPECI," "),"[",1)), data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
                    data_descriptor$models <- NULL
+                   
+                   data_descriptor$top_taxa = list()
+                   for (taxonomy_rank in c("Species", "Genus", "Family"))
+                   {
+                         data_descriptor$top_taxa[[taxonomy_rank]] <- get_top_spps (data_descriptor$ctree, taxonomy_rank, data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
+                   }
 
                    data_descriptor$pred_q_range <- matrix(NA, nrow=length(g_all_predictors_quantitative), ncol=4)
                    dimnames(data_descriptor$pred_q_range) <- list(g_all_predictors_quantitative, c('min', 'max', 'diff', 'mean'))
@@ -1456,7 +1463,6 @@ server <- function(input, output, session)
                    updateSelectInput(session, inputId='ui_data_descriptor_name', choices = names(r_values$data_descriptors))
                    
                    file.copy (input$admin_new_data_file$datapath, data_descriptor$file_name, overwrite=TRUE )
-                   update_taxonomy_map(data_descriptor$ctree)
                   
                    incProgress(1, detail="Success")
                    Sys.sleep(2)
