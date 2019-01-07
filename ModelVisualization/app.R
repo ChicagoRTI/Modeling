@@ -325,7 +325,8 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                         fluidRow
                         ( 
                               column(3,selectInput(inputId = "ui_data_descriptor_name", label = strong("Dataset"),  choices = '', selected = '')),
-                              column(3,radioButtons(inputId = "ui_taxonomic_unit", label = "",  choices = g_taxonomic_levels, selected = g_taxonomic_levels[1])),
+                              column(1,radioButtons(inputId = "ui_taxonomic_unit", label = "",  choices = g_taxonomic_levels, selected = g_taxonomic_levels[1])),
+                              column(2,radioButtons(inputId = "ui_interval_type", label = "",  choices = c("Quantiles", "Equal intervals"))),
                               column(1, offset=5, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
                         ),
                         g_hr,
@@ -1000,7 +1001,7 @@ server <- function(input, output, session)
       
       
              
-       assign_quantiles <- function(full, var='HEIGHT_MEAN', num_bins=5)
+       assign_intervals <- function(full, var='HEIGHT_MEAN', num_bins=5, interval_type)
        {
              # Calculate the break points - evenly spread acress the range
              val_range <- range(full[[var]], na.rm=TRUE)
@@ -1018,8 +1019,15 @@ server <- function(input, output, session)
              }
              else
              {
-                   # Bin the specified variable. The bin names are stored in a new column called "cat"
-                   full$cat <- cut2(full[[var]], g=num_bins)
+                   # Bin the specified variable (by either quantiles or equal intervals). The bin names are stored in a new column called "cat"
+                   if (interval_type == 'Quantiles')
+                   {
+                         full$cat <- cut2(full[[var]], g=num_bins)
+                   }
+                   else
+                   {
+                         full$cat <- cut(full[[var]], breaks=num_bins)
+                   }
                    # Pretty up the bin names. Remove brackets and use only 3 significant digits 
                    x <- gsub('\\[||\\]||\\(||\\)','',levels(full$cat))
                    x <- strsplit(x, ",")
@@ -1168,7 +1176,7 @@ server <- function(input, output, session)
              }
 
              # Categorize the trees by the requested variable. 
-             ctree <- assign_quantiles (ctree, input$ui_var, input$ui_bins)
+             ctree <- assign_intervals (ctree, input$ui_var, input$ui_bins, input$ui_interval_type)
 
              # Create a data frame to collect the data
              df_cols <- c("Taxon", "LandUse", levels(ctree$cat))
