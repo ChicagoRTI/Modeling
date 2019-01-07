@@ -187,13 +187,11 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                             g_hr,
                             tabsetPanel
                             (
-                                  selected = p(icon("stats", lib = "glyphicon"),'Species ocurrence probability'),
-                      
-
                                   tabPanel
                                   (
                                         id="model",
-                                        title=p(icon("stats", lib = "glyphicon"),'Species ocurrence probability'), 
+                                        title=uiOutput("ocurrence_tab_name"),
+                                        
                                         fluidRow 
                                         (
                                               column 
@@ -292,7 +290,7 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                                   tabPanel
                                   (
                                         id="predict",
-                                        title=p(icon("dashboard", lib = "glyphicon"),'Predict tree species'), 
+                                        title=uiOutput("predict_tab_name"), 
                                         column 
                                         ( 
                                               width=3,
@@ -636,7 +634,19 @@ server <- function(input, output, session)
       })
       
       
-
+      # Observe the species set list. Use this to trigger label and title updates to reflect the current taxomonic unit
+      observeEvent (input$filter_species_set, {
+            taxonomic_unit <- ifelse(input$filter_species_set=='Top 10 genera', "Genus", "Species")
+            output$ocurrence_tab_name = renderText({
+                  paste('<p><i class="glyphicon glyphicon-stats"></i>', taxonomic_unit, 'ocurrence probability</p>', sep=' ')
+            })
+            output$predict_tab_name = renderText({
+                  paste('<p><i class="glyphicon glyphicon-dashboard"></i> Predict tree', tolower(taxonomic_unit), '</p>', sep=' ')
+            })
+            updateCheckboxGroupInput (session, inputId = "species", label = taxonomic_unit)
+            
+      })
+      
 
       ################################################################################################################
       # 
@@ -785,6 +795,7 @@ server <- function(input, output, session)
             
             regression_coords <- get_regression_coords(input$filter_model_type, filter_data, model, g_all_predictors, input$plot_predictor, input$species, r_values$selected_land_use, r_values$data_descriptors[[input$data_descriptor_name]]$pred_q_range)
             occurrence_coords <- get_occurrence_coords (filter_data, input$species, input$plot_predictor)
+            taxonomic_unit <- ifelse(input$filter_species_set=='Top 10 genera', "Genus", "Species")
             
             p <- ggplot () +
                   scale_x_continuous(name=names(g_all_predictors_quantitative[g_all_predictors_quantitative==input$plot_predictor])) +
@@ -797,20 +808,20 @@ server <- function(input, output, session)
                   {
                         p <- p + 
                               geom_area(data=regression_coords, position='stack', aes(x=x, y=y, group=species, fill=species)) +
-                              scale_fill_discrete(name="Species")
+                              scale_fill_discrete(name=taxonomic_unit)
                   }
                   else
                   {
                         p <- p + 
                               geom_line(data=regression_coords, position='stack', aes(x=x, y=y, group=species, colour=species)) +
-                              scale_colour_discrete(name="Species") 
+                              scale_colour_discrete(name=taxonomic_unit) 
                   }
             }
             else
             {
                   p <- p + 
                         geom_line(data=regression_coords, aes(x=x, y=y, group=species, colour=species)) +
-                        scale_colour_discrete(name="Species") 
+                        scale_colour_discrete(name=taxonomic_unit) 
             }
             if (input$plot_observations == TRUE)
             {
@@ -914,7 +925,7 @@ server <- function(input, output, session)
             p <- predict_multinomial(model, model_input, input$predict_LU, r_values$data_descriptors[[input$data_descriptor_name]]$pred_q_range)
             lu_weight <- ifelse('LU' %in% g_all_predictors, model$pred_c_specs[['LU']]$cat_weights[[input$predict_LU]], 1)
             p <- data.frame(Probability=t(p/lu_weight))
-            p$Species <- rownames(p)
+            p$Taxon <- rownames(p)
             return (p)
       })
       
@@ -925,7 +936,9 @@ server <- function(input, output, session)
             }
             prediction <- get_species_prediction()
             prediction <- prediction[order(prediction$Probability, decreasing = TRUE),]
-            return (rbind(prediction, data.frame(Species='Total', Probability=sum(prediction$Probability))))
+            prediction <- rbind(prediction, data.frame(Taxon='Total', Probability=sum(prediction$Probability)))
+            names(prediction)[names(prediction)=='Taxon'] <- ifelse(input$filter_species_set=='Top 10 genera', "Genus", "Species")
+            return (prediction)
       }, spacing='xs')
 
       output$out_piechart <- renderPlot({
@@ -946,7 +959,8 @@ server <- function(input, output, session)
                    )
              
              p <- ggplot (prediction) +
-                   aes(x='', y=Probability, fill=Species) +
+                   aes(x='', y=Probability, fill=Taxon) +
+                   labs(fill=ifelse(input$filter_species_set=='Top 10 genera', "Genus", "Species")) +
                    geom_bar(width = 1, stat = "identity") +
                    coord_polar("y", start=0) + 
                    blank_theme + 
@@ -1108,7 +1122,7 @@ server <- function(input, output, session)
              {
                    shinyjs::show("ui_taxa_panel")
              }
-             updateCheckboxGroupInput(session, "ui_taxon", choices = r_values$display_taxon_list, selected = r_values$selected_taxon_list)
+             updateCheckboxGroupInput(session, "ui_taxon", label=input$ui_taxonomic_unit, choices = r_values$display_taxon_list, selected = r_values$selected_taxon_list)
        })
        
        # Observe a change in the data_descriptor name
