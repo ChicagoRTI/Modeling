@@ -42,7 +42,7 @@ g_common_species <- sort(unique(read.delim('https://don-morrison-2000.github.io/
 g_species_sets <- c("Top 10 species", "Top 10 genera", "Common species")
 g_usda_genus_to_family_map <- read.delim(file="https://don-morrison-2000.github.io/data/usda_genus_to_family_map.csv", sep=',', header=TRUE, row.names=1)
 g_taxonomy_map = data.frame(Species=character(), Genus=character(), Family=character())
-g_taxonomic_levels = c("Species", "Genus", "Family")
+g_taxonomic_ranks = c("Species", "Genus", "Family")
 
 # Define all possible quantitative predictors
 g_all_predictors_quantitative <- c (
@@ -325,7 +325,7 @@ ui <- navbarPage("CRTI Tree Data", theme = shinytheme("cyborg"), selected = p(ic
                         fluidRow
                         ( 
                               column(3,selectInput(inputId = "ui_data_descriptor_name", label = strong("Dataset"),  choices = '', selected = '')),
-                              column(1,radioButtons(inputId = "ui_taxonomic_unit", label = "",  choices = g_taxonomic_levels, selected = g_taxonomic_levels[1])),
+                              column(1,radioButtons(inputId = "ui_taxonomic_unit", label = "",  choices = g_taxonomic_ranks, selected = g_taxonomic_ranks[1])),
                               column(2,radioButtons(inputId = "ui_interval_type", label = "",  choices = c("Quantiles", "Equal intervals"))),
                               column(1, offset=5, style = "margin-top: 25px;", actionButton("ui_help", "", icon=icon('question-sign', lib = "glyphicon")))
                         ),
@@ -1456,15 +1456,15 @@ server <- function(input, output, session)
                    data_descriptor$file_name_original <- input$admin_new_data_file$name
                    data_descriptor$hash <- digest::digest(data_descriptor$ctree)
                    data_descriptor$records <- nrow(data_descriptor$ctree)
-                   data_descriptor$top_ten_species <- sort(names(head(sort(table(factor(data_descriptor$ctree[['GENUSSPECI']])), decreasing = TRUE), TOP_TEN)))
+#                   data_descriptor$top_ten_species <- sort(names(head(sort(table(factor(data_descriptor$ctree[['GENUSSPECI']])), decreasing = TRUE), TOP_TEN)))
                    data_descriptor$lu_cats <- levels(data_descriptor$ctree$LU)
                    data_descriptor$main_lu_cats <- names(which(table(data_descriptor$ctree$LU)>400))
                    data_descriptor$models <- NULL
                    
                    data_descriptor$top_taxa = list()
-                   for (taxonomy_rank in c("Species", "Genus", "Family"))
+                   for (taxonomic_rank in g_taxonomic_ranks)
                    {
-                         data_descriptor$top_taxa[[taxonomy_rank]] <- get_top_spps (data_descriptor$ctree, taxonomy_rank, data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
+                         data_descriptor$top_taxa[[taxonomic_rank]] <- get_top_spps (data_descriptor$ctree, taxonomic_rank, data_descriptor$main_lu_cats, MAX_ABUNDANCE_LEVEL)
                    }
 
                    data_descriptor$pred_q_range <- matrix(NA, nrow=length(g_all_predictors_quantitative), ncol=4)
