@@ -1236,15 +1236,21 @@ server <- function(input, output, session)
        
        # Update the widget height to match the number of facets, then call the function that performs the plot
        output$ui_chart <- renderUI({
-             if (r_values$collapse_chart == TRUE)
+             height <- 1
+             width <- 1
+             length(input$ui_taxon) > 0
              {
-                   height <- ifelse (length(input$ui_taxon)==0, 0, 200)
+                   width ="100%"
+                   if (r_values$collapse_chart == TRUE)
+                   {
+                         height <- 200
+                   }
+                   else
+                   {
+                         height <- 200+(length(input$ui_taxon)-1)*100
+                   }
              }
-             else
-             {
-                   height <- ifelse (length(input$ui_taxon)==0, 0, 200+(length(input$ui_taxon)-1)*100)
-             }
-             plotOutput("contents", height = height, width = "100%")
+             plotOutput("contents", height = height, width = width)
        })
        
        
