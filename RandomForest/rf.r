@@ -11,6 +11,7 @@ DATA_PATH = 'https://don-morrison-2000.github.io/data/glendale_accepted_V1.csv'
 PREDICTORS <- c("LU", "DBH_IN", "CROWN_COMPACTNESS", "HEIGHT_MAX", "HEIGHT_MEAN", "CROWN_AREA", "BLDG_AGE", "HU_DENS", "RELBORDER_TREE", "NDVI_MEAN")
 NUM_RECORDS <- -1  # -1 for all records
 NUM_SPECIES <- 5
+LAND_USE <- read.delim('https://don-morrison-2000.github.io/data/land_use.csv', as.is=TRUE, header=FALSE)
 
 
 
@@ -32,8 +33,8 @@ run <- function()
       filtered_data <- filtered_data[filtered_data$GENUSSPECI %in% top_genera,]
       # Make the dependent variable a factor (to tell the model that this is classification vs regression)
       filtered_data$GENUSSPECI <- as.factor(filtered_data$GENUSSPECI)
-      # Land use is a categorical predictor
-      filtered_data$LU <- as.factor(filtered_data$LU)
+      # Convert land use numbers to descriptive names (and factors)
+      filtered_data$LU <- as.factor(LAND_USE$V2[as.numeric(as.character(filtered_data$LU))])
       # Partition the data into traning (2/3) and test (1/3)
       set.seed(123)
       train_data_indicies <- sample(seq_len(nrow(filtered_data)), size = floor(0.666 * nrow(filtered_data)))
